@@ -81,20 +81,23 @@ long    StartTime = 0;
 Forecast_record_type  WxConditions[1];
 Forecast_record_type  WxForecast[max_readings];
 
-#include "common.h"
-
 float pressure_readings[max_readings]    = {0};
 float temperature_readings[max_readings] = {0};
 float humidity_readings[max_readings]    = {0};
 float rain_readings[max_readings]        = {0};
 float snow_readings[max_readings]        = {0};
 
-long SleepDuration = 30; // Sleep time in minutes, aligned to the nearest minute boundary, so if 30 will always update at 00 or 30 past the hour
-int  WakeupTime    = 7;  // Don't wakeup until after 07:00 to save battery power
-int  SleepTime     = 23; // Sleep after (23+1) 00:00 to save battery power
-int  WeatherShow3d = 0;
-
 RTC_DATA_ATTR int show3DaysPredict = 1;
+
+#define SleepDuration 30 // Sleep time in minutes, aligned to the nearest minute boundary, so if 30 will always update at 00 or 30 past the hour
+#define  WakeupTime    7  // Don't wakeup until after 07:00 to save battery power
+#define  SleepTime     23 // Sleep after (23+1) 00:00 to save battery power
+#define  WeatherShow3d 0
+
+#define LED GPIO_NUM_19
+#define ALT_BUTTON GPIO_NUM_39
+
+#include "common.h"
 
 void callback(){
   //placeholder callback function
@@ -110,15 +113,25 @@ void setup() {
   Serial.println(">>>>> WAKE UP REASON STARTS");
   print_wakeup_reason();
   esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
-  if (wakeup_reason == 2) {
-    show3DaysPredict = !show3DaysPredict;
-  }
   Serial.println(">>>>> WAKE UP REASON ENDS");
 
-  if (StartWiFi() == WL_CONNECTED && SetupTime() == true) {
+  pinMode(LED, OUTPUT);
+  digitalWrite(LED, HIGH);
+
+  bool shouldDisplay = false;
+  if (wakeup_reason == 2) {
+    SetupTime(false);
+    show3DaysPredict = !show3DaysPredict;
+    shouldDisplay = true;
+    Serial.println("Initialising Display");
+    InitialiseDisplay(false); // Give screen time to initialise by getting weather data!
+    delay(2000);
+    DecodeWeather(wx_dataF, "forecast");
+    DecodeWeather(wx_dataW, "weather");
+  } else if (StartWiFi() == WL_CONNECTED && SetupTime(true) == true) {
     //if ((CurrentHour >= WakeupTime && CurrentHour <= SleepTime)) {
       Serial.println("Initialising Display");
-      InitialiseDisplay(); // Give screen time to initialise by getting weather data!
+      InitialiseDisplay(true); // Give screen time to initialise by getting weather data!
       byte Attempts = 1;
       bool RxWeather = false, RxForecast = false;
       Serial.println("Attempt to get weather");
@@ -128,13 +141,16 @@ void setup() {
         if (RxForecast == false) RxForecast = obtain_wx_data(client, "forecast");
         Attempts++;
       }
-      if (RxWeather && RxForecast) { // Only if received both Weather or Forecast proceed
-        StopWiFi(); // Reduces power consumption
-        Serial.println("Displaying Weather");        
-        DisplayWeather();
-        display.display(false); // Full screen update mode
-      }
+      shouldDisplay = RxWeather && RxForecast; // Only if received both Weather or Forecast proceed
+      StopWiFi(); // Reduces power consumption
     //}
+  }
+  digitalWrite(LED, LOW);
+
+  if (shouldDisplay) {
+    Serial.println("Displaying Weather");        
+    DisplayWeather();
+    display.display(false); // Full screen update mode
   }
   BeginSleep();
 }
@@ -145,7 +161,7 @@ void loop() { // this will never run!
 void BeginSleep() {
   display.powerOff();
   long SleepTimer = (SleepDuration * 60 - ((CurrentMin % SleepDuration) * 60 + CurrentSec)); //Some ESP32 are too fast to maintain accurate time
-  esp_sleep_enable_ext0_wakeup(GPIO_NUM_39, LOW);
+  esp_sleep_enable_ext0_wakeup(ALT_BUTTON, LOW);
 
   esp_sleep_enable_timer_wakeup((SleepTimer+20) * 1000000LL); // Added 20-sec extra delay to cater for slow ESP32 RTC timers
 #ifdef BUILTIN_LED
@@ -592,10 +608,11 @@ void StopWiFi() {
   WiFi.mode(WIFI_OFF);
 }
 //#########################################################################################
-boolean SetupTime() {
-  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer, "cn.pool.ntp.org"); //(gmtOffset_sec, daylightOffset_sec, ntpServer)
-  //setenv("TZ", Timezone, 1);  //setenv()adds the "TZ" variable to the environment with a value TimeZone, only used if set to 1, 0 means no change
-  //tzset(); // Set the TZ environment variable
+boolean SetupTime(bool ntp) {
+  if (ntp)
+    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer, "cn.pool.ntp.org"); //(gmtOffset_sec, daylightOffset_sec, ntpServer)
+  setenv("TZ", Timezone, 1);  //setenv()adds the "TZ" variable to the environment with a value TimeZone, only used if set to 1, 0 means no change
+  tzset(); // Set the TZ environment variable
   delay(100);
   bool TimeStatus = UpdateLocalTime();
   return TimeStatus;
@@ -957,9 +974,9 @@ void drawString(int x, int y, String text, alignmentType alignment) {
 //   }
 // }
 //#########################################################################################
-void InitialiseDisplay() {
+void InitialiseDisplay(bool init) {
   Serial.println("Begin InitialiseDisplay...");
-  display.init(115200, true, 2, false);
+  display.init(115200, init, 2, false);
   // display.init(); for older Waveshare HAT's
   SPI.end();
   SPI.begin(EPD_SCK, EPD_MISO, EPD_MOSI, EPD_CS);

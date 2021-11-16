@@ -16,8 +16,16 @@ void Convert_Readings_to_Imperial() {
 }
 
 //#########################################################################################
+RTC_DATA_ATTR char wx_dataW[640], wx_dataF[2560]; // 509, 2145
 // Problems with stucturing JSON decodes, see here: https://arduinojson.org/assistant/
-bool DecodeWeather(WiFiClient& json, String Type) {
+bool DecodeWeather(const String &json, String Type) {
+  if (Type == "weather"){
+    strcpy(wx_dataW, json.c_str());
+  } else if (Type == "forecast"){
+    strcpy(wx_dataF, json.c_str());
+  }
+  Serial.println(wx_dataW);
+  Serial.println("length is " + String(json.length()));
   Serial.print(F("\nCreating object...and "));
   // allocate the JsonDocument
   DynamicJsonDocument doc(35 * 1024);
@@ -109,7 +117,6 @@ String ConvertUnixTime(int unix_time) {
 }
 //#########################################################################################
 //WiFiClient client; // wifi client object
-
 bool obtain_wx_data(WiFiClient& client, const String& RequestType) {
   const String units = (Units == "M" ? "metric" : "imperial");
   client.stop(); // close connection before sending a new request
@@ -123,7 +130,8 @@ bool obtain_wx_data(WiFiClient& client, const String& RequestType) {
   http.begin(client, server, 80, uri);
   int httpCode = http.GET();
   if(httpCode == HTTP_CODE_OK) {
-    if (!DecodeWeather(http.getStream(), RequestType)) return false;
+    String wx_data = http.getString();
+    if (!DecodeWeather(wx_data, RequestType)) return false;
     client.stop();
     http.end();
     return true;
