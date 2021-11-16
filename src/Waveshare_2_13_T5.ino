@@ -22,6 +22,7 @@
 #include <ArduinoJson.h>     // https://github.com/bblanchon/ArduinoJson
 // #include "ArduinoNvs.h"
 #include <WiFi.h>            // Built-in
+#include <WiFiMulti.h>
 #include "time.h"
 #include <SPI.h>
 #define  ENABLE_GxEPD2_display 0
@@ -407,7 +408,7 @@ void DisplayAstronomySection(int x, int y) {
   const int day_utc   = now_utc->tm_mday;
   const int month_utc = now_utc->tm_mon + 1;
   const int year_utc  = now_utc->tm_year + 1900;
-  drawString(x+72, y + 32, MoonPhase(day_utc, month_utc, year_utc, Hemisphere), RIGHT);
+  drawString(x+75, y + 32, MoonPhase(day_utc, month_utc, year_utc, Hemisphere), RIGHT);
   DrawMoon(x+50, y-20, day_utc, month_utc, year_utc, Hemisphere);
 }
 //#########################################################################################
@@ -486,11 +487,11 @@ void DrawSmallWind(int x, int y, float angle, float windspeed) {
   String d = WindDegToDirection(angle);
   if (d.length() <= 2*3) { // unicode is 3byte
     drawString(x+8, y+15, d, CENTER);
-    arrow(x+5, y+5, 0, angle, 6, 12);  // Show wind direction as just an arrow
+    arrow(x+5, y+5, 0, angle, 7, 10);  // Show wind direction as just an arrow
   } else {
     drawString(x+8, y+3, d.substring(0, d.length() - 2*3), CENTER);
     drawString(x+8, y+15, d.substring(d.length() - 2*3, d.length()), CENTER);
-    arrow(x+5, y-5, 0, angle, 6, 12);  // Show wind direction as just an arrow
+    arrow(x+5, y-5, 0, angle, 7, 10);  // Show wind direction as just an arrow
   }
   u8g2Fonts.setFont(u8g2_font_helvB08_tf);
   drawString(x+5, y+25, String(windspeed, 1), CENTER);  
@@ -554,9 +555,9 @@ void arrow(int x, int y, int asize, float aangle, int pwidth, int plength) {
   float xx3 = x3 * cos(angle) - y3 * sin(angle) + dx;
   float yy3 = y3 * cos(angle) + x3 * sin(angle) + dy;
   display.fillTriangle(xx1, yy1, xx3, yy3, xx2, yy2, GxEPD_BLACK);
-  float xx4 = (- x1 * cos(angle) + y1 * sin(angle)) * 0.2 + dx;
-  float yy4 = (- y1 * cos(angle) - x1 * sin(angle)) * 0.2 + dy;
-  display.drawLine(x, y, xx4, yy4, GxEPD_BLACK);
+  float xx4 = (- x1 * cos(angle) + y1 * sin(angle)) * 0.3 + dx;
+  float yy4 = (- y1 * cos(angle) - x1 * sin(angle)) * 0.3 + dy;
+  display.drawLine(xx1, yy1, xx4, yy4, GxEPD_BLACK);
 }
 //#########################################################################################
 void DrawPressureTrend(int x, int y, float pressure, String slope) {
@@ -591,18 +592,22 @@ void DisplayWXicon(int x, int y, String IconName, bool IconSize) {
   else                                              Nodata(x, y, IconSize, IconName);
 }
 //#########################################################################################
+WiFiMulti wifiMulti;
 uint8_t StartWiFi() {
-  Serial.print("\r\nConnecting to: "); Serial.println(String(ssid));
-  IPAddress dns(8, 8, 8, 8); // Google DNS
+  Serial.print("\r\nConnecting WiFI ");
+  //IPAddress dns(8, 8, 8, 8); // Google DNS
   WiFi.disconnect();
   WiFi.mode(WIFI_STA); // switch off AP
   WiFi.setAutoConnect(true);
   WiFi.setAutoReconnect(true);
+  // wifiMulti.addAP(ssid, password);
+  // wifiMulti.addAP(ssid2, password2);
   WiFi.begin(ssid, password);
   unsigned long start = millis();
   uint8_t connectionStatus;
   bool AttemptConnection = true;
   while (AttemptConnection) {
+    //connectionStatus = wifiMulti.run(); //5s by default
     connectionStatus = WiFi.status();
     if (millis() > start + 15000) { // Wait 15-secs maximum
       AttemptConnection = false;
@@ -614,7 +619,7 @@ uint8_t StartWiFi() {
   }
   if (connectionStatus == WL_CONNECTED) {
     wifi_signal = WiFi.RSSI(); // Get Wifi Signal strength now, because the WiFi will be turned off to save power!
-    Serial.println("WiFi connected at: " + WiFi.localIP().toString());
+    Serial.printf("WiFi connected at: %s %s %ddBm\n", WiFi.SSID().c_str(), WiFi.localIP().toString().c_str(), wifi_signal);
   }
   else Serial.println("WiFi connection *** FAILED ***");
   return connectionStatus;
