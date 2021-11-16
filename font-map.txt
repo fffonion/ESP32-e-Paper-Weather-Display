@@ -1,0 +1,7 @@
+// u8g2_font_wqy12_t_gb2312  // u8g2_font_helvB08_tf
+// u8g2_font_wqy15_t_gb2312 // u8g2_font_helvB10_tf; 11p
+// u8g2_font_wqy16_12_t_gb2312     // u8g2_font_helvB12_tf
+// u8g2_font_wqy16_14_t_gb2312     // u8g2_font_helvB14_tf
+// u8g2_font_wqy16_18_t_gb2312     // u8g2_font_helvB18_tf
+// u8g2_font_wqy16_24_t_gb2312     // u8g2_font_helvB25_tf
+
