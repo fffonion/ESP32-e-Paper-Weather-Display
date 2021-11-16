@@ -8,6 +8,8 @@
 #include "forecast_record.h"
 #include "common_functions.h"
 
+#include "cities.h"
+
 //#########################################################################################
 void Convert_Readings_to_Imperial() {
   WxConditions[0].Pressure = hPa_to_inHg(WxConditions[0].Pressure);
@@ -16,7 +18,7 @@ void Convert_Readings_to_Imperial() {
 }
 
 //#########################################################################################
-RTC_DATA_ATTR char wx_dataW[640], wx_dataF[2560]; // 509, 2145
+RTC_DATA_ATTR char wx_dataW[550], wx_dataF[2300]; // 509, 2145
 // Problems with stucturing JSON decodes, see here: https://arduinojson.org/assistant/
 bool DecodeWeather(const String &json, String Type) {
   if (Type == "weather"){
@@ -117,11 +119,65 @@ String ConvertUnixTime(int unix_time) {
 }
 //#########################################################################################
 //WiFiClient client; // wifi client object
-bool obtain_wx_data(WiFiClient& client, const String& RequestType) {
-  const String units = (Units == "M" ? "metric" : "imperial");
+RTC_DATA_ATTR float lat, lon;
+RTC_DATA_ATTR const char *cityName;
+
+bool obtain_latlong(WiFiClient& client) {
+  if (lat > 0 && lon > 0) {
+    return true;
+  }
   client.stop(); // close connection before sending a new request
   HTTPClient http;
-  String uri = "/data/2.5/" + RequestType + "?q=" + City + "," + Country + "&APPID=" + apikey + "&mode=json&units=" + units + "&lang=" + Language;
+  //http.begin(uri,test_root_ca); //HTTPS example connection
+  http.begin(client, "ip-api.com", 80, "/json/?lang=zh-CN");
+  int httpCode = http.GET();
+  if(httpCode == HTTP_CODE_OK) {
+    StaticJsonDocument<512> doc;
+    // Deserialize the JSON document
+    DeserializationError error = deserializeJson(doc, http.getStream());
+    // Test if parsing succeeds.
+    if (error) {
+      Serial.print(F("deserializeJson() failed: "));
+      Serial.println(error.c_str());
+      return false;
+    }
+    // convert it to a JsonObject
+    JsonObject root = doc.as<JsonObject>();
+    lat = root["lat"].as<float>();
+    lon = root["lon"].as<float>();
+    String cityEn = root["city"].as<const char *>();
+    cityEn.toLowerCase();
+    for(int i=0; i < city_count; i++ ) {
+      if (cityEn.equals(cities[i].pinyin)) {
+        cityName = cities[i].cn;
+        break;
+      }
+    }
+    // strcpy(cityEn, root["city"].as<const char *>());
+    Serial.printf("Setting city %s lon %f lat %f\n", cityName, lon, lat);
+
+    client.stop();
+    http.end();
+    return true;
+  }
+  else
+  {
+    Serial.printf("connection failed, error: %s", http.errorToString(httpCode).c_str());
+    client.stop();
+    http.end();
+    return false;
+  }
+  http.end();
+  return true;
+}
+
+bool obtain_wx_data(WiFiClient& client, const String& RequestType) {
+  const String units = (Units == "M" ? "metric" : "imperial");
+  if (!obtain_latlong(client)) return false;
+
+  client.stop(); // close connection before sending a new request
+  HTTPClient http;
+  String uri = "/data/2.5/" + RequestType + "?lat=" + String(lat) + "&lon=" + String(lon) + "&APPID=" + apikey + "&mode=json&units=" + units + "&lang=" + Language;
   if(RequestType != "weather")
   {
     uri += "&cnt=" + String(max_readings);
