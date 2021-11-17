@@ -22,9 +22,12 @@
 #include <ArduinoJson.h>     // https://github.com/bblanchon/ArduinoJson
 // #include "ArduinoNvs.h"
 #include <WiFi.h>            // Built-in
-#include <WiFiMulti.h>
 #include "time.h"
 #include <SPI.h>
+#include <Preferences.h>  // WiFi storage
+#include "driver/adc.h"
+#include <esp_wifi.h>
+#include <esp_bt.h>
 #define  ENABLE_GxEPD2_display 0
 #include <GxEPD2_BW.h>
 #include <GxEPD2_3C.h>
@@ -73,7 +76,7 @@ bool    LargeIcon = true, SmallIcon = false;
 #define Large 7    // For best results use odd numbers
 #define Small 3    // For best results use odd numbers
 String  time_str, date_str; // strings to hold time and date
-int     wifi_signal, CurrentHour = 0, CurrentMin = 0, CurrentSec = 0;
+int     wifi_signal = -120, CurrentHour = 0, CurrentMin = 0, CurrentSec = 0;
 long    StartTime = 0;
 
 //################ PROGRAM VARIABLES and OBJECTS ##########################################
@@ -103,6 +106,8 @@ RTC_DATA_ATTR int lastUpdateNTP = 0;
 
 #include "common.h"
 
+String PrefSSID, PrefPassword;
+
 void callback(){
   //placeholder callback function
 }
@@ -122,16 +127,19 @@ void setup() {
   pinMode(LED, OUTPUT);
   digitalWrite(LED, HIGH);
 
-  bool shouldDisplay = false;
-  if (wakeup_reason == 2) {
+  pinMode(ALT_BUTTON, INPUT);
+
+  bool shouldDisplay = true;
+  if (wakeup_reason == 2 && digitalRead(ALT_BUTTON) != LOW) { // not long press and wifi previously connected
     SetupTime();
     show3DaysPredict = !show3DaysPredict;
-    shouldDisplay = true;
+    // shouldDisplay = true;
     Serial.println("Initialising Display");
     InitialiseDisplay(false); // Give screen time to initialise by getting weather data!
     delay(2000);
-    DecodeWeather(wx_dataF, "forecast");
-    DecodeWeather(wx_dataW, "weather");
+    if (!DecodeWeather(wx_dataF, "forecast") || ! DecodeWeather(wx_dataW, "weather")) {
+      cityName = "无法连接网络";
+    }
   } else if (StartWiFi() == WL_CONNECTED && SetupTime() == true) {
     //if ((CurrentHour >= WakeupTime && CurrentHour <= SleepTime)) {
       Serial.println("Initialising Display");
@@ -145,29 +153,45 @@ void setup() {
         if (RxForecast == false) RxForecast = obtain_wx_data(client, "forecast");
         Attempts++;
       }
-      shouldDisplay = RxWeather && RxForecast; // Only if received both Weather or Forecast proceed
+      // shouldDisplay = RxWeather && RxForecast; // Only if received both Weather or Forecast proceed
+      if(!RxWeather || !RxForecast) {
+         cityName = "获取天气失败";
+      }
       StopWiFi(); // Reduces power consumption
     //}
+  } else {
+    Serial.println("Initialising Display");
+    InitialiseDisplay(true); // Give screen time to initialise by getting weather data!
+    delay(2000);
+    cityName = "无法连接网络";
+    // shouldDisplay = true;
   }
   digitalWrite(LED, LOW);
 
-  if (shouldDisplay) {
+  // if (shouldDisplay) {
     Serial.println("Displaying Weather");        
     DisplayWeather();
     display.display(false); // Full screen update mode
-  }
-  BeginSleep();
+  // }
+  BeginSleep(PrefSSID == "none"); // if no wifi configured, sleep without timer
 }
 //#########################################################################################
 void loop() { // this will never run!
 }
 //#########################################################################################
-void BeginSleep() {
+void BeginSleep(bool notimer) {
   display.powerOff();
+  WiFi.disconnect(true);
+  WiFi.mode(WIFI_OFF);
+  btStop(); adc_power_off(); esp_wifi_stop(); esp_bt_controller_disable();
   long SleepTimer = (SleepDuration * 60 - ((CurrentMin % SleepDuration) * 60 + CurrentSec)); //Some ESP32 are too fast to maintain accurate time
   esp_sleep_enable_ext0_wakeup(ALT_BUTTON, LOW);
 
-  esp_sleep_enable_timer_wakeup((SleepTimer+20) * 1000000LL); // Added 20-sec extra delay to cater for slow ESP32 RTC timers
+  if(!notimer) {
+    esp_sleep_enable_timer_wakeup((SleepTimer+20) * 1000000LL); // Added 20-sec extra delay to cater for slow ESP32 RTC timers
+  } else {
+    Serial.println("Will not wake up on timer");
+  }
 #ifdef BUILTIN_LED
   pinMode(BUILTIN_LED, INPUT); // If it's On, turn it off and some boards use GPIO-5 for SPI-SS, which remains low after screen use
   digitalWrite(BUILTIN_LED, HIGH);
@@ -592,17 +616,68 @@ void DisplayWXicon(int x, int y, String IconName, bool IconSize) {
   else                                              Nodata(x, y, IconSize, IconName);
 }
 //#########################################################################################
-WiFiMulti wifiMulti;
+// SSID storage
+Preferences preferences;  // declare class object
+// END SSID storage
+bool WiFiSmartConfig() {
+  preferences.begin("wifi", false);
+  PrefSSID = preferences.getString("ssid", "none");  // NVS key ssid
+  PrefPassword = preferences.getString("password", "none");  // NVS key password
+  preferences.end();
+  if (!(PrefSSID == "none" || PrefPassword == "none")) {
+    if (digitalRead(ALT_BUTTON) == LOW) {
+      Serial.println("Reset smart config");
+      preferences.begin("wifi", false);
+      preferences.clear();
+      preferences.end();
+      PrefSSID = "none";
+    } else {
+      return true;
+    }
+  }
+
+  Serial.printf("Start smart config");
+  WiFi.beginSmartConfig();
+  unsigned long start = millis();
+  while((millis() < start + 60000)) { // 1m
+    Serial.print(".");
+    digitalWrite(LED, LOW);
+    delay(250);
+    digitalWrite(LED, HIGH);
+    delay(250);
+    if ( WiFi.smartConfigDone() ) {
+      PrefSSID = WiFi.SSID();
+      PrefPassword = WiFi.psk();
+      Serial.printf("WiFi config: %s %s\n", PrefSSID, PrefPassword);
+      preferences.begin("wifi", false);
+      preferences.putString("ssid", PrefSSID);  // NVS key ssid
+      preferences.putString("password", PrefPassword);  // NVS key password
+      preferences.end();
+      for(int i=0; i<3; i++) { // blink x3
+        digitalWrite(LED, LOW);
+        delay(100);
+        digitalWrite(LED, HIGH);
+        delay(100);
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
 uint8_t StartWiFi() {
-  Serial.print("\r\nConnecting WiFI ");
-  //IPAddress dns(8, 8, 8, 8); // Google DNS
   WiFi.disconnect();
   WiFi.mode(WIFI_STA); // switch off AP
+
+  if (!WiFiSmartConfig()) {
+    return WL_NO_SSID_AVAIL;
+  }
+  //IPAddress dns(8, 8, 8, 8); // Google DNS
   WiFi.setAutoConnect(true);
   WiFi.setAutoReconnect(true);
-  // wifiMulti.addAP(ssid, password);
-  // wifiMulti.addAP(ssid2, password2);
-  WiFi.begin(ssid, password);
+
+  Serial.print("Connecting WiFI ");
+  WiFi.begin(PrefSSID.c_str(), PrefPassword.c_str());
   unsigned long start = millis();
   uint8_t connectionStatus;
   bool AttemptConnection = true;
