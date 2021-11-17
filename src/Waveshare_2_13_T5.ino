@@ -76,7 +76,8 @@ bool    LargeIcon = true, SmallIcon = false;
 #define Large 7    // For best results use odd numbers
 #define Small 3    // For best results use odd numbers
 String  time_str, date_str; // strings to hold time and date
-int     wifi_signal = -120, CurrentHour = 0, CurrentMin = 0, CurrentSec = 0;
+int     CurrentHour = 0, CurrentMin = 0, CurrentSec = 0;
+RTC_DATA_ATTR int wifi_signal = -120;
 long    StartTime = 0;
 
 //################ PROGRAM VARIABLES and OBJECTS ##########################################
