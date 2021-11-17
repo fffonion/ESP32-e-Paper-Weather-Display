@@ -51,7 +51,7 @@ enum alignmentType {LEFT, RIGHT, CENTER};
 // https://github.com/lewisxhe/TTGO-EPaper-Series#board-pins
 static const uint8_t EPD_BUSY = 4;
 static const uint8_t EPD_CS   = 5;
-static const uint8_t EPD_RST  = 16; 
+static const uint8_t EPD_RST  = 16;
 static const uint8_t EPD_DC   = 17; //Data/Command
 static const uint8_t EPD_SCK  = 18;   //CLK on pinout?
 static const uint8_t EPD_MISO = -1; // Master-In Slave-Out not used, as no data from display
@@ -170,7 +170,7 @@ void setup() {
   digitalWrite(LED, LOW);
 
   // if (shouldDisplay) {
-    Serial.println("Displaying Weather");        
+    Serial.println("Displaying Weather");
     DisplayWeather();
     display.display(false); // Full screen update mode
   // }
@@ -519,8 +519,8 @@ void DrawSmallWind(int x, int y, float angle, float windspeed) {
     arrow(x+5, y-5, 0, angle, 7, 10);  // Show wind direction as just an arrow
   }
   u8g2Fonts.setFont(u8g2_font_helvB08_tf);
-  drawString(x+5, y+25, String(windspeed, 1), CENTER);  
-  drawString(x+5, y+35, String(Units == "M" ? " m/s" : " mph"), CENTER);  
+  drawString(x+5, y+25, String(windspeed, 1), CENTER);
+  drawString(x+5, y+35, String(Units == "M" ? " m/s" : " mph"), CENTER);
 }
 //#########################################################################################
 // void DrawWind(int x, int y, float angle, float windspeed) {
@@ -1129,10 +1129,10 @@ void InitialiseDisplay(bool init) {
 
   Version 6.3 changed u8g2 fonts selection
    1.  Omitted 'FONT(' and added _tf to font names either Regular (R) or Bold (B)
-  
+
   Version 6.4
    1. Added an extra 20-secs sleep delay to allow for slow ESP32 RTC timers
-   
+
    Version 6.5
    1. Modified for GxEPD2
 
