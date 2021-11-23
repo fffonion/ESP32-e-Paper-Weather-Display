@@ -121,11 +121,13 @@ String ConvertUnixTime(int unix_time) {
 //WiFiClient client; // wifi client object
 RTC_DATA_ATTR float lat, lon;
 RTC_DATA_ATTR const char *cityName;
+RTC_DATA_ATTR char cityEn[16];
 
 bool obtain_latlong(WiFiClient& client) {
   if (lat > 0 && lon > 0) {
     return true;
   }
+  Serial.printf("Start obtain_latlong");
   client.stop(); // close connection before sending a new request
   HTTPClient http;
   //http.begin(uri,test_root_ca); //HTTPS example connection
@@ -145,10 +147,12 @@ bool obtain_latlong(WiFiClient& client) {
     JsonObject root = doc.as<JsonObject>();
     lat = root["lat"].as<float>();
     lon = root["lon"].as<float>();
-    String cityEn = root["city"].as<const char *>();
-    cityEn.toLowerCase();
+    strcpy(cityEn, root["city"].as<const char *>());
+    cityName = cityEn; // fallback
+    String ce = cityEn;
+    ce.toLowerCase();
     for(int i=0; i < city_count; i++ ) {
-      if (cityEn.equals(cities[i].pinyin)) {
+      if (ce.equals(cities[i].pinyin)) {
         cityName = cities[i].cn;
         break;
       }

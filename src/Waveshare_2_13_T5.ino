@@ -109,6 +109,8 @@ RTC_DATA_ATTR int lastUpdateNTP = 0;
 
 String PrefSSID, PrefPassword;
 
+String errmsg = "";
+
 void callback(){
   //placeholder callback function
 }
@@ -130,6 +132,8 @@ void setup() {
 
   pinMode(ALT_BUTTON, INPUT);
 
+  errmsg = "";
+
   bool shouldDisplay = true;
   if (wakeup_reason == 2 && digitalRead(ALT_BUTTON) != LOW) { // not long press and wifi previously connected
     SetupTime();
@@ -139,7 +143,7 @@ void setup() {
     InitialiseDisplay(false); // Give screen time to initialise by getting weather data!
     delay(2000);
     if (!DecodeWeather(wx_dataF, "forecast") || ! DecodeWeather(wx_dataW, "weather")) {
-      cityName = "无法连接网络";
+      errmsg = ERR_NETWORK_ERROR;
     }
   } else if (StartWiFi() == WL_CONNECTED && SetupTime() == true) {
     //if ((CurrentHour >= WakeupTime && CurrentHour <= SleepTime)) {
@@ -156,7 +160,7 @@ void setup() {
       }
       // shouldDisplay = RxWeather && RxForecast; // Only if received both Weather or Forecast proceed
       if(!RxWeather || !RxForecast) {
-         cityName = "获取天气失败";
+         errmsg = ERR_WEATHER_API_ERROR;
       }
       StopWiFi(); // Reduces power consumption
     //}
@@ -164,7 +168,7 @@ void setup() {
     Serial.println("Initialising Display");
     InitialiseDisplay(true); // Give screen time to initialise by getting weather data!
     delay(2000);
-    cityName = "无法连接网络";
+    errmsg = ERR_NETWORK_ERROR;
     // shouldDisplay = true;
   }
   digitalWrite(LED, LOW);
@@ -284,7 +288,12 @@ void Draw_Heading_Section() {
 //#########################################################################################
 void Draw_Main_Weather_Section() {
   u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312);
-  drawString(3, 16, cityName, LEFT);
+  if (errmsg.length() > 0) {
+    drawString(3, 16, errmsg, LEFT);
+  } else {
+    drawString(3, 16, cityName, LEFT);
+  }
+
   DisplayWXicon(117, 40, WxConditions[0].Icon, SmallIcon);
   u8g2Fonts.setFont(u8g2_font_helvB14_tf);
   drawString(3, 35, String(WxConditions[0].Temperature, 1) + "° " + String(WxConditions[0].Humidity, 0) + "%", LEFT);

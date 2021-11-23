@@ -70,3 +70,6 @@ const char* weekday_D[] = { "星期日", "星期一", "星期二", "星期三", 
 //Month
 const char* month_M[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
 
+const String ERR_NETWORK_ERROR = "无法连接网络";
+const String ERR_WEATHER_API_ERROR = "获取天气失败";
+
