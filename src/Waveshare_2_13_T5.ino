@@ -336,6 +336,7 @@ void Draw_3hr_Forecast(int x, int y, int index) {
 #define barchart_off  false
 void DrawForecastSection(int x, int y) {
   u8g2Fonts.setFont(u8g2_font_helvB08_tf);
+  bool hasRain = false;
   for (int r = 1; r <= max_readings; r++) {
     if (Units == "I") {
       pressure_readings[r] = WxForecast[r].Pressure * 0.02953;
@@ -345,12 +346,17 @@ void DrawForecastSection(int x, int y) {
       pressure_readings[r] = WxForecast[r].Pressure;
       rain_readings[r]     = WxForecast[r].Rainfall;
     }
+    if (rain_readings[r] > 0) hasRain = true;
     temperature_readings[r] = WxForecast[r].Temperature;
+    humidity_readings[r]    = WxForecast[r].Humidity;
   }
   u8g2Fonts.setFont(u8g2_font_5x7_tf); // small font
   DrawGraph(x, y, 42, 31, 900, 1050, Units == "M" ? TXT_PRESSURE_HPA : TXT_PRESSURE_IN, pressure_readings, max_readings, autoscale_on, barchart_off);
   DrawGraph(x + 72, y, 42, 31, 10, 30, Units == "M" ? TXT_TEMPERATURE_C : TXT_TEMPERATURE_F, temperature_readings, max_readings, autoscale_on, barchart_off);
-  DrawGraph(x + 144, y, 42, 31, 0, 30, Units == "M" ? TXT_RAINFALL_MM : TXT_RAINFALL_IN, rain_readings, max_readings, autoscale_on, barchart_on);
+  if (hasRain)
+    DrawGraph(x + 144, y, 42, 31, 0, 30, Units == "M" ? TXT_RAINFALL_MM : TXT_RAINFALL_IN, rain_readings, max_readings, autoscale_on, barchart_on);
+  else
+    DrawGraph(x + 144, y, 42, 31, 0, 30, TXT_HUMIDITY_PERCENT, humidity_readings, max_readings, autoscale_on, barchart_off);
 }
 //#########################################################################################
 /* (C) D L BIRD
