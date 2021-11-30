@@ -131,7 +131,7 @@ bool obtain_latlong(WiFiClient& client) {
   client.stop(); // close connection before sending a new request
   HTTPClient http;
   //http.begin(uri,test_root_ca); //HTTPS example connection
-  http.begin(client, "ip-api.com", 80, "/json/?lang=zh-CN");
+  http.begin(client, "ip-api.com", 80, "/json");
   int httpCode = http.GET();
   if(httpCode == HTTP_CODE_OK) {
     StaticJsonDocument<512> doc;
@@ -151,6 +151,9 @@ bool obtain_latlong(WiFiClient& client) {
     cityName = cityEn; // fallback
     String ce = cityEn;
     ce.toLowerCase();
+    if (ce.endsWith(" shi") || ce.endsWith(" qu") || ce.endsWith(" xian")) {
+      ce.replace(" shi", ""); ce.replace(" qu", ""); ce.replace(" xian", "");
+    }
     for(int i=0; i < city_count; i++ ) {
       if (ce.equals(cities[i].pinyin)) {
         cityName = cities[i].cn;
@@ -166,7 +169,7 @@ bool obtain_latlong(WiFiClient& client) {
   }
   else
   {
-    Serial.printf("connection failed, error: %s", http.errorToString(httpCode).c_str());
+    Serial.printf("connection failed, error: %s", String(httpCode));
     client.stop();
     http.end();
     return false;
@@ -198,7 +201,7 @@ bool obtain_wx_data(WiFiClient& client, const String& RequestType) {
   }
   else
   {
-    Serial.printf("connection failed, error: %s", http.errorToString(httpCode).c_str());
+    Serial.printf("connection failed, error: %s", String(httpCode));
     client.stop();
     http.end();
     return false;
