@@ -24,15 +24,12 @@
 #include <WiFi.h>            // Built-in
 #include "time.h"
 #include <SPI.h>
-#include <Preferences.h>  // WiFi storage
-#include "driver/adc.h"
-#include <esp_wifi.h>
-#include <esp_bt.h>
 #define  ENABLE_GxEPD2_display 0
 #include <GxEPD2_BW.h>
 #include <GxEPD2_3C.h>
 #include <U8g2_for_Adafruit_GFX.h>
 #include "forecast_record.h"
+#include "esp32_ctrl.h"
 #include "lang_zhs.h"                   // Localisation (English)
 //#include "lang_cz.h"                // Localisation (Czech)
 //#include "lang_fr.h"                // Localisation (French)
@@ -57,6 +54,7 @@ static const uint8_t EPD_SCK  = 18;   //CLK on pinout?
 static const uint8_t EPD_MISO = -1; // Master-In Slave-Out not used, as no data from display
 static const uint8_t EPD_MOSI = 23;
 
+//GxEPD2_3C<GxEPD2_420c_Z96, GxEPD2_420c_Z96::HEIGHT> display(GxEPD2_420c_Z96(/*CS=D8*/ EPD_CS, /*DC=D3*/ EPD_DC, /*RST=D4*/ EPD_RST, /*BUSY=D2*/ EPD_BUSY));
 GxEPD2_BW<GxEPD2_213_B73, GxEPD2_213_B73::HEIGHT> display(GxEPD2_213_B73(/*CS=D8*/ EPD_CS, /*DC=D3*/ EPD_DC, /*RST=D4*/ EPD_RST, /*BUSY=D2*/ EPD_BUSY));
 
 U8G2_FOR_ADAFRUIT_GFX u8g2Fonts;  // Select u8g2 font from here: https://github.com/olikraus/u8g2/wiki/fntlistall
@@ -77,8 +75,6 @@ bool    LargeIcon = true, SmallIcon = false;
 #define Small 3    // For best results use odd numbers
 String  time_str, date_str; // strings to hold time and date
 int     CurrentHour = 0, CurrentMin = 0, CurrentSec = 0;
-RTC_DATA_ATTR int wifi_signal = -120;
-long    StartTime = 0;
 
 //################ PROGRAM VARIABLES and OBJECTS ##########################################
 #define max_readings 5
@@ -95,19 +91,12 @@ float snow_readings[max_readings]        = {0};
 RTC_DATA_ATTR int show3DaysPredict = 1;
 RTC_DATA_ATTR int lastUpdateNTP = 0;
 
-#define SleepDuration 30 // Sleep time in minutes, aligned to the nearest minute boundary, so if 30 will always update at 00 or 30 past the hour
-#define  WakeupTime    7  // Don't wakeup until after 07:00 to save battery power
-#define  SleepTime     23 // Sleep after (23+1) 00:00 to save battery power
-#define  WeatherShow3d 0
+RTC_DATA_ATTR int wifi_signal;
 
+#define  WeatherShow3d 0
 #define NTPUpdateThreshold 7*3600
 
-#define LED GPIO_NUM_19
-#define ALT_BUTTON GPIO_NUM_39
-
 #include "common.h"
-
-String PrefSSID, PrefPassword;
 
 String errmsg = "";
 
@@ -117,8 +106,8 @@ void callback(){
 
 //#########################################################################################
 void setup() {
-  StartTime = millis();
   Serial.begin(115200);
+  ESP32CtrlStart();
   // NVS.begin();
   // WeatherShow3d = NVS.getInt("weather_show_3d");
   // Serial.println(">>>>>>>>> WeatherShow3d: " + String(WeatherShow3d));
@@ -134,7 +123,7 @@ void setup() {
 
   errmsg = "";
 
-  bool shouldDisplay = true;
+ //bool shouldDisplay = true;
   if (wakeup_reason == 2 && digitalRead(ALT_BUTTON) != LOW) { // not long press and wifi previously connected
     SetupTime();
     show3DaysPredict = !show3DaysPredict;
@@ -162,6 +151,7 @@ void setup() {
       if(!RxWeather || !RxForecast) {
          errmsg = ERR_WEATHER_API_ERROR;
       }
+      wifi_signal = WiFi.RSSI(); // Get Wifi Signal strength now, because the WiFi will be turned off to save power!
       StopWiFi(); // Reduces power consumption
     //}
   } else {
@@ -178,48 +168,11 @@ void setup() {
     DisplayWeather();
     display.display(false); // Full screen update mode
   // }
-  BeginSleep(PrefSSID == "none"); // if no wifi configured, sleep without timer
+  display.powerOff();
+  BeginSleep(PrefSSID == "none", CurrentHour, CurrentMin, CurrentSec); // if no wifi configured, sleep without timer
 }
 //#########################################################################################
 void loop() { // this will never run!
-}
-//#########################################################################################
-void BeginSleep(bool notimer) {
-  display.powerOff();
-  WiFi.disconnect(true);
-  WiFi.mode(WIFI_OFF);
-  btStop(); adc_power_off(); esp_wifi_stop(); esp_bt_controller_disable();
-  long SleepTimer = (SleepDuration * 60 - ((CurrentMin % SleepDuration) * 60 + CurrentSec)); //Some ESP32 are too fast to maintain accurate time
-  esp_sleep_enable_ext0_wakeup(ALT_BUTTON, LOW);
-
-  if(!notimer) {
-    esp_sleep_enable_timer_wakeup((SleepTimer+20) * 1000000LL); // Added 20-sec extra delay to cater for slow ESP32 RTC timers
-  } else {
-    Serial.println("Will not wake up on timer");
-  }
-#ifdef BUILTIN_LED
-  pinMode(BUILTIN_LED, INPUT); // If it's On, turn it off and some boards use GPIO-5 for SPI-SS, which remains low after screen use
-  digitalWrite(BUILTIN_LED, HIGH);
-#endif
-  Serial.println("Entering " + String(SleepTimer) + "-secs of sleep time");
-  Serial.println("Awake for : " + String((millis() - StartTime) / 1000.0, 3) + "-secs");
-  Serial.println("Starting deep-sleep period...");
-  esp_deep_sleep_start();  // Sleep for e.g. 30 minutes
-}
-
-//Function that prints the reason by which ESP32 has been awaken from sleep
-void print_wakeup_reason(){
-  esp_sleep_wakeup_cause_t wakeup_reason;
-  wakeup_reason = esp_sleep_get_wakeup_cause();
-  switch(wakeup_reason)
-  {
-    case 1  : Serial.println("Wakeup caused by external signal using RTC_IO"); break;
-    case 2  : Serial.println("Wakeup caused by external signal using RTC_CNTL"); break;
-    case 3  : Serial.println("Wakeup caused by timer"); break;
-    case 4  : Serial.println("Wakeup caused by touchpad"); break;
-    case 5  : Serial.println("Wakeup caused by ULP program"); break;
-    default : Serial.println("Wakeup was not caused by deep sleep"); break;
-  }
 }
 
 //#########################################################################################
@@ -295,18 +248,24 @@ void Draw_Main_Weather_Section() {
   }
 
   DisplayWXicon(117, 40, WxConditions[0].Icon, SmallIcon);
-  u8g2Fonts.setFont(u8g2_font_helvB14_tf);
-  drawString(3, 35, String(WxConditions[0].Temperature, 1) + "° " + String(WxConditions[0].Humidity, 0) + "%", LEFT);
+  u8g2Fonts.setFont(u8g2_font_helvB18_tf);
+  drawString(3, 40, String(WxConditions[0].Temperature, 1) + "° ", LEFT);
+  u8g2Fonts.setFont(u8g2_font_nokiafc22_tn);
+  drawString(5, 55, String(WxConditions[0].High, 1) + "° | " + String(WxConditions[0].Low, 1) + "°", LEFT);
+  //display.drawFastVLine(60, 30, 40, GxEPD_BLACK);
+
+  u8g2Fonts.setFont(u8g2_font_wqy15_t_gb2312);
+  drawString(65, 40, String(WxConditions[0].Humidity, 0) + "%", LEFT);
   u8g2Fonts.setFont(u8g2_font_wqy15_t_gb2312); //u8g2_font_helvB10_tf
   //Squeeze in a small wind indication in the space we cannot quite squeeze a 3h prediction into
   DrawSmallWind(230, 75, WxConditions[0].Winddir, WxConditions[0].Windspeed);
   //Pressure just getting in the way and very small right now.
-  DrawPressureTrend(90, 62, WxConditions[0].Pressure, WxConditions[0].Trend);
+  DrawPressureTrend(65, 18, WxConditions[0].Pressure, WxConditions[0].Trend);
   u8g2Fonts.setFont(u8g2_font_wqy15_t_gb2312);
   String Wx_Description = WxConditions[0].Forecast0;
   if (WxConditions[0].Forecast1 != "") Wx_Description += " & " +  WxConditions[0].Forecast1;
   if (WxConditions[0].Forecast2 != "" && WxConditions[0].Forecast1 != WxConditions[0].Forecast2) Wx_Description += " & " +  WxConditions[0].Forecast2;
-  drawString(2, 58, TitleCase(Wx_Description), LEFT);
+  drawString(65, 58, TitleCase(Wx_Description), LEFT);
   display.drawLine(0, 72, (5 * 44), 72, GxEPD_BLACK); //Draw width of the 5 weather forcasts
 }
 //#########################################################################################
@@ -337,7 +296,7 @@ void Draw_3hr_Forecast(int x, int y, int index) {
 void DrawForecastSection(int x, int y) {
   u8g2Fonts.setFont(u8g2_font_helvB08_tf);
   bool hasRain = false;
-  for (int r = 1; r <= max_readings; r++) {
+  for (int r = 0; r < max_readings; r++) {
     if (Units == "I") {
       pressure_readings[r] = WxForecast[r].Pressure * 0.02953;
       rain_readings[r]     = WxForecast[r].Rainfall * 0.0393701;
@@ -630,95 +589,6 @@ void DisplayWXicon(int x, int y, String IconName, bool IconSize) {
   else if (IconName == "50d")                       Haze(x, y, IconSize, IconName);
   else if (IconName == "50n")                       Fog(x, y, IconSize, IconName);
   else                                              Nodata(x, y, IconSize, IconName);
-}
-//#########################################################################################
-// SSID storage
-Preferences preferences;  // declare class object
-// END SSID storage
-bool WiFiSmartConfig() {
-  preferences.begin("wifi", false);
-  PrefSSID = preferences.getString("ssid", "none");  // NVS key ssid
-  PrefPassword = preferences.getString("password", "none");  // NVS key password
-  preferences.end();
-  if (!(PrefSSID == "none" || PrefPassword == "none")) {
-    if (digitalRead(ALT_BUTTON) == LOW) {
-      Serial.println("Reset smart config");
-      preferences.begin("wifi", false);
-      preferences.clear();
-      preferences.end();
-      PrefSSID = "none";
-    } else {
-      return true;
-    }
-  }
-
-  Serial.printf("Start smart config");
-  WiFi.beginSmartConfig();
-  unsigned long start = millis();
-  while((millis() < start + 60000)) { // 1m
-    Serial.print(".");
-    digitalWrite(LED, LOW);
-    delay(250);
-    digitalWrite(LED, HIGH);
-    delay(250);
-    if ( WiFi.smartConfigDone() ) {
-      PrefSSID = WiFi.SSID();
-      PrefPassword = WiFi.psk();
-      Serial.printf("WiFi config: %s %s\n", PrefSSID, PrefPassword);
-      preferences.begin("wifi", false);
-      preferences.putString("ssid", PrefSSID);  // NVS key ssid
-      preferences.putString("password", PrefPassword);  // NVS key password
-      preferences.end();
-      for(int i=0; i<3; i++) { // blink x3
-        digitalWrite(LED, LOW);
-        delay(100);
-        digitalWrite(LED, HIGH);
-        delay(100);
-      }
-      return true;
-    }
-  }
-  return false;
-}
-
-uint8_t StartWiFi() {
-  WiFi.disconnect();
-  WiFi.mode(WIFI_STA); // switch off AP
-
-  if (!WiFiSmartConfig()) {
-    return WL_NO_SSID_AVAIL;
-  }
-  //IPAddress dns(8, 8, 8, 8); // Google DNS
-  WiFi.setAutoConnect(true);
-  WiFi.setAutoReconnect(true);
-
-  Serial.print("Connecting WiFI ");
-  WiFi.begin(PrefSSID.c_str(), PrefPassword.c_str());
-  unsigned long start = millis();
-  uint8_t connectionStatus;
-  bool AttemptConnection = true;
-  while (AttemptConnection) {
-    //connectionStatus = wifiMulti.run(); //5s by default
-    connectionStatus = WiFi.status();
-    if (millis() > start + 15000) { // Wait 15-secs maximum
-      AttemptConnection = false;
-    }
-    if (connectionStatus == WL_CONNECTED || connectionStatus == WL_CONNECT_FAILED) {
-      AttemptConnection = false;
-    }
-    delay(50);
-  }
-  if (connectionStatus == WL_CONNECTED) {
-    wifi_signal = WiFi.RSSI(); // Get Wifi Signal strength now, because the WiFi will be turned off to save power!
-    Serial.printf("WiFi connected at: %s %s %ddBm\n", WiFi.SSID().c_str(), WiFi.localIP().toString().c_str(), wifi_signal);
-  }
-  else Serial.println("WiFi connection *** FAILED ***");
-  return connectionStatus;
-}
-//#########################################################################################
-void StopWiFi() {
-  WiFi.disconnect();
-  WiFi.mode(WIFI_OFF);
 }
 //#########################################################################################
 boolean SetupTime() {

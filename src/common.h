@@ -26,7 +26,7 @@ bool DecodeWeather(const String &json, String Type) {
   } else if (Type == "forecast"){
     strcpy(wx_dataF, json.c_str());
   }
-  Serial.println(wx_dataW);
+  //Serial.println(wx_dataW);
   Serial.println("length is " + String(json.length()));
   Serial.print(F("\nCreating object...and "));
   // allocate the JsonDocument
@@ -169,7 +169,7 @@ bool obtain_latlong(WiFiClient& client) {
   }
   else
   {
-    Serial.printf("connection failed, error: %s", String(httpCode));
+    Serial.printf("connection failed, error: %d", httpCode);
     client.stop();
     http.end();
     return false;
@@ -201,7 +201,7 @@ bool obtain_wx_data(WiFiClient& client, const String& RequestType) {
   }
   else
   {
-    Serial.printf("connection failed, error: %s", String(httpCode));
+    Serial.printf("connection failed, error: %d", httpCode);
     client.stop();
     http.end();
     return false;

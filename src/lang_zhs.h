@@ -1,28 +1,28 @@
 #define FONT(x) x##_tf
 
 //Temperature - Humidity - Forecast
-const String TXT_FORECAST_VALUES  = "3-Day Forecast Values";
-const String TXT_CONDITIONS       = "Conditions";
+const String TXT_FORECAST_VALUES  = "未来三日预报";
+const String TXT_CONDITIONS       = "天气状况";
 const String TXT_DAYS             = "(天)";
 const String TXT_TEMPERATURES     = "气温";
-const String TXT_TEMPERATURE_C    = "气温 (*C)";
-const String TXT_TEMPERATURE_F    = "气温 (*F)";
+const String TXT_TEMPERATURE_C    = "气温 (°C)";
+const String TXT_TEMPERATURE_F    = "气温 (°F)";
 const String TXT_HUMIDITY_PERCENT = "湿度 (%)";
 
 // Pressure
 const String TXT_PRESSURE         = "气压";
 const String TXT_PRESSURE_HPA     = "气压 (hPa)";
 const String TXT_PRESSURE_IN      = "气压 (in)";
-const String TXT_PRESSURE_STEADY  = "Steady";
-const String TXT_PRESSURE_RISING  = "Rising";
-const String TXT_PRESSURE_FALLING = "Falling";
+const String TXT_PRESSURE_STEADY  = "稳定";
+const String TXT_PRESSURE_RISING  = "上升";
+const String TXT_PRESSURE_FALLING = "下降";
 
 //RainFall / SnowFall
 const String TXT_RAINFALL_MM = "降水 (mm)";
 const String TXT_RAINFALL_IN = "降水 (in)";
 const String TXT_SNOWFALL_MM = "降雪 (mm)";
 const String TXT_SNOWFALL_IN = "降雪 (in)";
-const String TXT_PRECIPITATION_SOON = "Prec.";
+const String TXT_PRECIPITATION_SOON = "降水概率";
 
 
 //Sun
@@ -46,7 +46,7 @@ const char* TXT_UPDATED = "Updated:";
 
 
 //Wind
-const String TXT_WIND_SPEED_DIRECTION = "Wind Speed/Direction";
+const String TXT_WIND_SPEED_DIRECTION = "风速/风向";
 const String TXT_N   = "北";
 const String TXT_NNE = "东北偏北";
 const String TXT_NE  = "东北";
