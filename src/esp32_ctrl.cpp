@@ -1,5 +1,11 @@
 #include "esp32_ctrl.h"
 
+#if __has_include("myconfig.h")
+#include "myconfig.h"
+#else
+#include "myconfig.example.h"
+#endif
+
 long StartTime = 0;
 String PrefSSID, PrefPassword;
 
@@ -29,6 +35,7 @@ void BeginSleep(bool notimer, int CurrentHour, int CurrentMin, int CurrentSec) {
   WiFi.disconnect(true);
   WiFi.mode(WIFI_OFF);
   btStop(); adc_power_off(); esp_wifi_stop(); esp_bt_controller_disable();
+  pinMode(13, OUTPUT); digitalWrite(13, HIGH); gpio_deep_sleep_hold_en(); // sleep flash
   long SleepTimer = (SleepDuration * 60 - ((CurrentMin % SleepDuration) * 60 + CurrentSec)); //Some ESP32 are too fast to maintain accurate time
   if ( (NightSleepStart < NightSleepEnd && CurrentHour > NightSleepStart && CurrentHour < NightSleepEnd) ||
     (NightSleepStart > NightSleepEnd && (CurrentHour > NightSleepStart || CurrentHour < NightSleepEnd)) ) {
@@ -111,6 +118,11 @@ uint8_t StartWiFi() {
   if (!WiFiSmartConfig()) {
     return WL_NO_SSID_AVAIL;
   }
+
+#ifdef useStaticIP
+  WiFi.config(ip, gateway, subnet, gateway);
+#endif
+
   //IPAddress dns(8, 8, 8, 8); // Google DNS
   WiFi.setAutoConnect(true);
   WiFi.setAutoReconnect(true);

@@ -113,6 +113,8 @@ String errmsg = "";
 
 //#########################################################################################
 void setup() {
+  setCpuFrequencyMhz(80);
+
   Serial.begin(115200);
   ESP32CtrlStart();
 
@@ -177,7 +179,7 @@ void DrawHeadingSection() {
 //#########################################################################################
 void DrawMainWeatherSection(int x, int y) {
   DisplayDisplayWindSection(x - 115, y - 3, WxConditions[0].Winddir, WxConditions[0].Windspeed, 40);
-  DisplayWXicon(x + 5, y - 15, WxConditions[0].Icon, LargeIcon);
+  DisplayWXicon(x + 5, y - 8, WxConditions[0].Icon, LargeIcon);
   u8g2Fonts.setFont(u8g2_font_helvB10_tf);
   DrawPressureAndTrend(x - 120, y + 58, WxConditions[0].Pressure, WxConditions[0].Trend);
   u8g2Fonts.setFont(u8g2_font_helvB12_tf);
@@ -215,7 +217,7 @@ void DrawForecastSection(int x, int y) {
   drawString(SCREEN_WIDTH / 2 + 20, y + 180, TXT_FORECAST_VALUES, CENTER);
   u8g2Fonts.setFont(u8g2_font_helvB10_tf);
   DrawGraph(SCREEN_WIDTH / 400 * 30,  SCREEN_HEIGHT / 300 * 221, SCREEN_WIDTH / 4, SCREEN_HEIGHT / 5, 900, 1050, Units == "M" ? TXT_PRESSURE_HPA : TXT_PRESSURE_IN, pressure_readings, max_readings, autoscale_on, barchart_off);
-  DrawGraph(SCREEN_WIDTH / 400 * 158, SCREEN_HEIGHT / 300 * 221, SCREEN_WIDTH / 4, SCREEN_HEIGHT / 5, 10, 30, Units == "M" ? TXT_TEMPERATURE_C : TXT_TEMPERATURE_F, temperature_readings, max_readings, autoscale_on, barchart_off);
+  DrawGraph(SCREEN_WIDTH / 400 * 160, SCREEN_HEIGHT / 300 * 221, SCREEN_WIDTH / 4, SCREEN_HEIGHT / 5, 10, 30, Units == "M" ? TXT_TEMPERATURE_C : TXT_TEMPERATURE_F, temperature_readings, max_readings, autoscale_on, barchart_off);
   if (hasRain)
     DrawGraph(SCREEN_WIDTH / 400 * 288, SCREEN_HEIGHT / 300 * 221, SCREEN_WIDTH / 4, SCREEN_HEIGHT / 5, 0, 30, Units == "M" ? TXT_RAINFALL_MM : TXT_RAINFALL_IN, rain_readings, max_readings, autoscale_on, barchart_on);
   else
@@ -249,6 +251,7 @@ void DisplayDisplayWindSection(int x, int y, float angle, float windspeed, int C
   display.drawCircle(x, y, Cradius, GxEPD_BLACK);     // Draw compass circle
   display.drawCircle(x, y, Cradius + 1, GxEPD_BLACK); // Draw compass circle
   display.drawCircle(x, y, Cradius * 0.7, GxEPD_BLACK); // Draw compass inner circle
+  u8g2Fonts.setForegroundColor(GxEPD_RED);
   for (float a = 0; a < 360; a = a + 22.5) {
     dxo = Cradius * cos((a - 90) * PI / 180);
     dyo = Cradius * sin((a - 90) * PI / 180);
@@ -258,13 +261,14 @@ void DisplayDisplayWindSection(int x, int y, float angle, float windspeed, int C
     if (a == 315) drawString(dxo + x - 15, dyo + y - 10, "NW", CENTER);
     dxi = dxo * 0.9;
     dyi = dyo * 0.9;
-    display.drawLine(dxo + x, dyo + y, dxi + x, dyi + y, GxEPD_BLACK);
+    display.drawLine(dxo + x, dyo + y, dxi + x, dyi + y, int(a) % 45 ? GxEPD_BLACK: GxEPD_RED);
     dxo = dxo * 0.7;
     dyo = dyo * 0.7;
     dxi = dxo * 0.9;
     dyi = dyo * 0.9;
-    display.drawLine(dxo + x, dyo + y, dxi + x, dyi + y, GxEPD_BLACK);
+    display.drawLine(dxo + x, dyo + y, dxi + x, dyi + y, int(a) % 45 ? GxEPD_BLACK: GxEPD_RED);
   }
+  u8g2Fonts.setForegroundColor(GxEPD_BLACK);
   drawString(x, y - Cradius - 10,     "N", CENTER);
   drawString(x, y + Cradius + 5,      "S", CENTER);
   drawString(x - Cradius - 10, y - 3, "W", CENTER);
@@ -415,7 +419,7 @@ void arrow(int x, int y, int asize, float aangle, int pwidth, int plength) {
   float yy2 = y2 * cos(angle) + x2 * sin(angle) + dy;
   float xx3 = x3 * cos(angle) - y3 * sin(angle) + dx;
   float yy3 = y3 * cos(angle) + x3 * sin(angle) + dy;
-  display.fillTriangle(xx1, yy1, xx3, yy3, xx2, yy2, GxEPD_BLACK);
+  display.fillTriangle(xx1, yy1, xx3, yy3, xx2, yy2, GxEPD_RED);
 }
 //#########################################################################################
 void DisplayWXicon(int x, int y, String IconName, bool IconSize) {
@@ -851,20 +855,22 @@ void DrawGraph(int x_pos, int y_pos, int gwidth, int gheight, float Y1Min, float
 #define number_of_dashes 15
   for (int spacing = 0; spacing <= y_minor_axis; spacing++) {
     for (int j = 0; j < number_of_dashes; j++) { // Draw dashed graph grid lines
-      if (spacing < y_minor_axis) display.drawFastHLine((x_pos + 3 + j * gwidth / number_of_dashes), y_pos + (gheight * spacing / y_minor_axis), gwidth / (2 * number_of_dashes), GxEPD_BLACK);
+      if (spacing < y_minor_axis) display.drawFastHLine((x_pos + 3 + j * gwidth / number_of_dashes), y_pos + (gheight * spacing / y_minor_axis), gwidth / (2 * number_of_dashes), spacing % 2 ? GxEPD_RED: GxEPD_BLACK);
     }
-    if (spacing % 2) display.setTextColor(GxEPD_LIGHTGREY);
+    //if (spacing % 2) u8g2Fonts.setForegroundColor(GxEPD_LIGHTGREY);
+    if (spacing % 2) u8g2Fonts.setForegroundColor(GxEPD_RED);
     if ((Y1Max - (float)(Y1Max - Y1Min) / y_minor_axis * spacing) < 5 || title == TXT_PRESSURE_IN) {
       drawString(x_pos, y_pos + gheight * spacing / y_minor_axis - 5, String((Y1Max - (float)(Y1Max - Y1Min) / y_minor_axis * spacing + 0.01), 1), RIGHT);
     }
     else
     {
-      if (Y1Min < 1 && Y1Max < 10)
+      //if (Y1Min < 1 && Y1Max < 10)
+    if (Y1Max < 10)
         drawString(x_pos - 3, y_pos + gheight * spacing / y_minor_axis - 5, String((Y1Max - (float)(Y1Max - Y1Min) / y_minor_axis * spacing + 0.01), 1), RIGHT);
       else
         drawString(x_pos - 3, y_pos + gheight * spacing / y_minor_axis - 5, String((Y1Max - (float)(Y1Max - Y1Min) / y_minor_axis * spacing + 0.01), 0), RIGHT);
     }
-    if (spacing % 2) display.setTextColor(GxEPD_BLACK);
+    if (spacing % 2) u8g2Fonts.setForegroundColor(GxEPD_BLACK);
   }
   for (int i = 0; i <= 2; i++) {
     drawString(15 + x_pos + gwidth / 3 * i, y_pos + gheight + 3, String(i), LEFT);
@@ -922,6 +928,7 @@ void InitialiseDisplay(bool init) {
   display.setFullWindow();
     Serial.println("... End InitialiseDisplay");
 }
+
 /*
   Version 12.0 reformatted to use u8g2 fonts
   1.  Screen layout revised
