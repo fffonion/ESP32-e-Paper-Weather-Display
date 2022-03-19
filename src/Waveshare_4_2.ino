@@ -142,6 +142,7 @@ void setup() {
       if (RxWeather && RxForecast) { // Only if received both Weather or Forecast proceed
         Serial.println("Displaying Weather");
         wifi_signal = WiFi.RSSI(); // Get Wifi Signal strength now, because the WiFi will be turned off to save power!
+        SendStatsd();
         StopWiFi(); // Reduces power consumption
         DisplayWeather();
         display.display(false); // Full screen update mode
@@ -762,21 +763,17 @@ void Nodata(int x, int y, bool IconSize, String IconName) {
 }
 //#########################################################################################
 void DrawBattery(int x, int y) {
-  uint8_t percentage = 100;
-  float voltage = analogRead(35) / 4096.0 * 7.46;
+  BatteryVoltage bv = GetBatteryVoltage(true);
   uint16_t color = GxEPD_BLACK;
-  if (voltage > 1 ) { // Only display if there is a valid reading
-    Serial.println("Voltage = " + String(voltage));
-    percentage = 2836.9625 * pow(voltage, 4) - 43987.4889 * pow(voltage, 3) + 255233.8134 * pow(voltage, 2) - 656689.7123 * voltage + 632041.7303;
-    if (voltage >= 4.20) percentage = 100;
-    if (voltage <= 3.50) percentage = 0;
-    if (percentage < 20) color = GxEPD_RED;
+  if (bv.voltage > 1 ) { // Only display if there is a valid reading
+    Serial.println("Voltage = " + String(bv.voltage));
+    if (bv.percentage < 20) color = GxEPD_RED;
     display.drawRect(x + 15, y - 12, 19, 10, color);
     display.fillRect(x + 34, y - 10, 2, 5, color);
-    display.fillRect(x + 17, y - 10, 15 * percentage / 100.0, 6, color);
-    display.setTextColor(color);
-    drawString(x + 65, y - 11, String(percentage) + "%", RIGHT);
-    display.setTextColor(GxEPD_BLACK);
+    display.fillRect(x + 17, y - 10, 15 * bv.percentage / 100.0, 6, color);
+    u8g2Fonts.setForegroundColor(color);
+    drawString(x + 65, y - 11, String(bv.percentage, 0) + "%", RIGHT);
+    u8g2Fonts.setForegroundColor(GxEPD_BLACK);
     //drawString(x + 13, y + 5,  String(voltage, 2) + "v", CENTER);
   }
 }

@@ -6,6 +6,8 @@
 #include "driver/adc.h"
 #include <esp_wifi.h>
 #include <esp_bt.h>
+#include <ArduinoOTA.h>
+#include <WiFiUdp.h>
 
 #define SleepDuration 30 // Sleep time in minutes, aligned to the nearest minute boundary, so if 30 will always update at 00 or 30 past the hour
 #define  WakeupTime    7  // Don't wakeup until after 07:00 to save battery power
@@ -26,5 +28,18 @@ extern String PrefSSID, PrefPassword;
 bool WiFiSmartConfig();
 uint8_t StartWiFi();
 void StopWiFi();
+
+void SetupOTA();
+void HandleOTA();
+
+typedef struct {
+    float voltage;
+    float percentage;
+} BatteryVoltage;
+
+BatteryVoltage GetBatteryVoltage();
+BatteryVoltage GetBatteryVoltage(bool cached);
+
+void SendStatsd();
 
 #endif

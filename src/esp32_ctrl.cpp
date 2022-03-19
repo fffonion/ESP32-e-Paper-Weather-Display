@@ -155,3 +155,110 @@ void StopWiFi() {
   WiFi.disconnect();
   WiFi.mode(WIFI_OFF);
 }
+
+void SetupOTA()
+{
+  // Start OTA once connected
+  Serial.println("Setting up OTA");
+  // Port defaults to 3232
+  // ArduinoOTA.setPort(3232);
+  // Hostname defaults to esp3232-[MAC]
+  ArduinoOTA.setHostname(otaName);
+  // No authentication by default
+  if (strlen(otaPassword) != 0)
+  {
+    ArduinoOTA.setPassword(otaPassword);
+    Serial.printf("OTA Password: %s\n\r", otaPassword);
+  }
+  else
+  {
+    Serial.printf("\r\nNo OTA password has been set! (insecure)\r\n\r\n");
+  }
+  ArduinoOTA
+      .onStart([]()
+               {
+                 String type;
+                 if (ArduinoOTA.getCommand() == U_FLASH)
+                   type = "sketch";
+                 else // U_SPIFFS
+                   type = "filesystem";
+                 // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
+                 Serial.println("Start updating " + type);
+               })
+      .onEnd([]()
+             { Serial.println("\r\nEnd"); })
+      .onProgress([](unsigned int progress, unsigned int total)
+                  { Serial.printf("Progress: %u%%\r", (progress / (total / 100))); })
+      .onError([](ota_error_t error)
+               {
+                 Serial.printf("Error[%u]: ", error);
+                 if (error == OTA_AUTH_ERROR)
+                   Serial.println("Auth Failed");
+                 else if (error == OTA_BEGIN_ERROR)
+                   Serial.println("Begin Failed");
+                 else if (error == OTA_CONNECT_ERROR)
+                   Serial.println("Connect Failed");
+                 else if (error == OTA_RECEIVE_ERROR)
+                   Serial.println("Receive Failed");
+                 else if (error == OTA_END_ERROR)
+                   Serial.println("End Failed");
+               });
+  ArduinoOTA.begin();
+}
+
+void HandleOTA()
+{
+  ArduinoOTA.handle();
+}
+
+BatteryVoltage cachedBv;
+
+BatteryVoltage GetBatteryVoltage()
+{
+  return GetBatteryVoltage(false);
+}
+
+BatteryVoltage GetBatteryVoltage(bool cached)
+{
+  if (cached && cachedBv.voltage > 0)
+    return cachedBv;
+
+  BatteryVoltage bv;
+  bv.percentage = 100;
+  bv.voltage = analogRead(35) / 4096.0 * 7.46;
+  if (bv.voltage > 1)
+  {
+    bv.percentage = 2836.9625 * pow(bv.voltage, 4) - 43987.4889 * pow(bv.voltage, 3) + 255233.8134 * pow(bv.voltage, 2) - 656689.7123 * bv.voltage + 632041.7303;
+    if (bv.voltage >= 4.20)
+      bv.percentage = 100;
+    if (bv.voltage <= 3.50)
+      bv.percentage = 0;
+    cachedBv = bv;
+    return bv;
+  }
+  else
+  {
+    BatteryVoltage ev;
+    return ev;
+  }
+}
+
+WiFiUDP Udp;
+
+void SendStatsd()
+{
+  char buf[200];
+  const uint8_t *pbuf = (uint8_t *)buf;
+  Udp.beginPacket(STATSD, 9125);
+
+  BatteryVoltage bv = GetBatteryVoltage(true);
+  sprintf(buf, "env.voltage.%s.esp32:%.2f|g\n", statsdTag, bv.voltage);
+  Udp.write(pbuf, strlen(buf));
+  sprintf(buf, "env.rssi.%s.esp32:%d|g\n", statsdTag, WiFi.RSSI());
+  Udp.write(pbuf, strlen(buf));
+
+  Udp.endPacket();
+
+  // make sure data is sent
+  delay(100);
+}
