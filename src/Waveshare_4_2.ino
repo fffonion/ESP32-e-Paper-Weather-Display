@@ -330,8 +330,8 @@ void DisplayPrecipitationSection(int x, int y) {
 void DrawAstronomySection(int x, int y) {
   u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312);
   display.drawRect(x, y + 64, 167, 48, GxEPD_BLACK);
-  drawString(x + 7, y + 70, ConvertUnixTime(WxConditions[0].Sunrise).substring(0, (Units == "M" ? 5 : 7)) + " " + TXT_SUNRISE, LEFT);
-  drawString(x + 7, y + 85, ConvertUnixTime(WxConditions[0].Sunset).substring(0, (Units == "M" ? 5 : 7)) + " " + TXT_SUNSET, LEFT);
+  drawString(x + 7, y + 70, ConvertUnixTime(WxConditions[0].Sunrise + WxConditions[0].Timezone).substring(0, (Units == "M" ? 5 : 7)) + " " + TXT_SUNRISE, LEFT);
+  drawString(x + 7, y + 85, ConvertUnixTime(WxConditions[0].Sunset + WxConditions[0].Timezone).substring(0, (Units == "M" ? 5 : 7)) + " " + TXT_SUNSET, LEFT);
   time_t now = time(NULL);
   struct tm * now_utc = gmtime(&now);
   const int day_utc   = now_utc->tm_mday;
