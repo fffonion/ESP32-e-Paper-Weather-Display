@@ -51,7 +51,7 @@ static const uint8_t EPD_SCK  = 18; // to EPD CLK
 static const uint8_t EPD_MISO = 2; // Master-In Slave-Out not used, as no data from display
 static const uint8_t EPD_MOSI = 23; // to EPD DIN
 
-GxEPD2_BW<GxEPD2_290_T5, GxEPD2_290_T5::HEIGHT> display(GxEPD2_290(/*CS=D8*/ EPD_CS, /*DC=D3*/ EPD_DC, /*RST=D4*/ EPD_RST, /*BUSY=D2*/ EPD_BUSY));
+GxEPD2_BW<GxEPD2_290_T5, GxEPD2_290_T5::HEIGHT> display(GxEPD2_290_T5(/*CS=D8*/ EPD_CS, /*DC=D3*/ EPD_DC, /*RST=D4*/ EPD_RST, /*BUSY=D2*/ EPD_BUSY));
 
 U8G2_FOR_ADAFRUIT_GFX u8g2Fonts;  // Select u8g2 font from here: https://github.com/olikraus/u8g2/wiki/fntlistall
 // Using fonts:
@@ -185,8 +185,8 @@ void Draw_3hr_Forecast(int x, int y, int index) {
 void DisplayAstronomySection(int x, int y) {
   display.drawRect(x, y + 13, 173, 52, GxEPD_BLACK);
   u8g2Fonts.setFont(u8g2_font_helvB08_tf);
-  drawString(x + 5, y + 18, ConvertUnixTime(WxConditions[0].Sunrise).substring(0, (Units == "M"?5:7)) + " " + TXT_SUNRISE, LEFT);
-  drawString(x + 5, y + 34, ConvertUnixTime(WxConditions[0].Sunset).substring(0, (Units == "M"?5:7)) + " " + TXT_SUNSET, LEFT);
+  drawString(x + 5, y + 18, ConvertUnixTime(WxConditions[0].Sunrise + WxConditions[0].Timezone).substring(0, (Units == "M"?5:7)) + " " + TXT_SUNRISE, LEFT);
+  drawString(x + 5, y + 34, ConvertUnixTime(WxConditions[0].Sunset + WxConditions[0].Timezone).substring(0, (Units == "M"?5:7)) + " " + TXT_SUNSET, LEFT);
   time_t now = time(NULL);
   struct tm * now_utc = gmtime(&now);
   const int day_utc   = now_utc->tm_mday;

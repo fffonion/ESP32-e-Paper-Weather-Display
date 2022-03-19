@@ -60,7 +60,6 @@ U8G2_FOR_ADAFRUIT_GFX u8g2Fonts;  // Select u8g2 font from here: https://github.
 // u8g2_font_helvB10_tf
 // u8g2_font_helvB12_tf
 // u8g2_font_helvB14_tf
-// u8g2_font_helvB18_tf
 // u8g2_font_helvB24_tf
 
 //################# LIBRARIES ##########################
@@ -226,8 +225,8 @@ void Draw_3hr_Forecast(int x, int y, int index) {
 //#########################################################################################
 void DisplayAstronomySection(int x, int y) {
   u8g2Fonts.setFont(u8g2_font_helvB08_tf);
-  drawString(x, y, ConvertUnixTime(WxConditions[0].Sunrise).substring(0, (Units == "M"?5:7)) + " " + TXT_SUNRISE, LEFT);
-  drawString(x, y + 16, ConvertUnixTime(WxConditions[0].Sunset).substring(0, (Units == "M"?5:7)) + " " + TXT_SUNSET, LEFT);
+  drawString(x, y, ConvertUnixTime(WxConditions[0].Sunrise + WxConditions[0].Timezone).substring(0, (Units == "M"?5:7)) + " " + TXT_SUNRISE, LEFT);
+  drawString(x, y + 16, ConvertUnixTime(WxConditions[0].Sunset + WxConditions[0].Timezone).substring(0, (Units == "M"?5:7)) + " " + TXT_SUNSET, LEFT);
   time_t now = time(NULL);
   struct tm * now_utc = gmtime(&now);
   const int day_utc   = now_utc->tm_mday;
