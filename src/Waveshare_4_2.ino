@@ -99,7 +99,8 @@ Forecast_record_type  WxForecast[max_readings];
 #define barchart_off  false
 
 float pressure_readings[max_readings]    = {0};
-float temperature_readings[max_readings] = {0};
+float temperature_lo_readings[max_readings] = {0};
+float temperature_hi_readings[max_readings] = {0};
 float humidity_readings[max_readings]    = {0};
 float rain_readings[max_readings]        = {0};
 float snow_readings[max_readings]        = {0};
@@ -210,19 +211,20 @@ void DrawForecastSection(int x, int y) {
       rain_readings[r]     = WxForecast[r].Rainfall;
     }
     if (rain_readings[r] > 0) hasRain = true;
-    temperature_readings[r] = WxForecast[r].Temperature;
+    temperature_lo_readings[r] = WxForecast[r].Low;
+    temperature_hi_readings[r] = WxForecast[r].High;
     humidity_readings[r]    = WxForecast[r].Humidity;
   }
   display.drawLine(0, y + 172, SCREEN_WIDTH, y + 172, GxEPD_BLACK);
   u8g2Fonts.setFont(u8g2_font_wqy14_t_gb2312);
   drawString(SCREEN_WIDTH / 2 + 20, y + 180, TXT_FORECAST_VALUES, CENTER);
   u8g2Fonts.setFont(u8g2_font_helvB10_tf);
-  DrawGraph(SCREEN_WIDTH / 400 * 30,  SCREEN_HEIGHT / 300 * 221, SCREEN_WIDTH / 4, SCREEN_HEIGHT / 5, 900, 1050, Units == "M" ? TXT_PRESSURE_HPA : TXT_PRESSURE_IN, pressure_readings, max_readings, autoscale_on, barchart_off);
-  DrawGraph(SCREEN_WIDTH / 400 * 160, SCREEN_HEIGHT / 300 * 221, SCREEN_WIDTH / 4, SCREEN_HEIGHT / 5, 10, 30, Units == "M" ? TXT_TEMPERATURE_C : TXT_TEMPERATURE_F, temperature_readings, max_readings, autoscale_on, barchart_off);
+  DrawGraph(SCREEN_WIDTH / 400 * 30,  SCREEN_HEIGHT / 300 * 221, SCREEN_WIDTH / 4, SCREEN_HEIGHT / 5, 900, 1050, Units == "M" ? TXT_PRESSURE_HPA : TXT_PRESSURE_IN, pressure_readings, NULL, max_readings, autoscale_on, barchart_off);
+  DrawGraph(SCREEN_WIDTH / 400 * 160, SCREEN_HEIGHT / 300 * 221, SCREEN_WIDTH / 4, SCREEN_HEIGHT / 5, 10, 30, Units == "M" ? TXT_TEMPERATURE_C : TXT_TEMPERATURE_F, temperature_lo_readings, temperature_hi_readings, max_readings, autoscale_on, barchart_off);
   if (hasRain)
-    DrawGraph(SCREEN_WIDTH / 400 * 288, SCREEN_HEIGHT / 300 * 221, SCREEN_WIDTH / 4, SCREEN_HEIGHT / 5, 0, 30, Units == "M" ? TXT_RAINFALL_MM : TXT_RAINFALL_IN, rain_readings, max_readings, autoscale_on, barchart_on);
+    DrawGraph(SCREEN_WIDTH / 400 * 288, SCREEN_HEIGHT / 300 * 221, SCREEN_WIDTH / 4, SCREEN_HEIGHT / 5, 0, 30, Units == "M" ? TXT_RAINFALL_MM : TXT_RAINFALL_IN, rain_readings, NULL, max_readings, autoscale_on, barchart_on);
   else
-    DrawGraph(SCREEN_WIDTH / 400 * 288, SCREEN_HEIGHT / 300 * 221, SCREEN_WIDTH / 4, SCREEN_HEIGHT / 5, 0, 30, TXT_HUMIDITY_PERCENT, humidity_readings, max_readings, autoscale_on, barchart_off);
+    DrawGraph(SCREEN_WIDTH / 400 * 288, SCREEN_HEIGHT / 300 * 221, SCREEN_WIDTH / 4, SCREEN_HEIGHT / 5, 0, 30, TXT_HUMIDITY_PERCENT, humidity_readings, NULL, max_readings, autoscale_on, barchart_off);
 }
 //#########################################################################################
 void DrawForecastWeather(int x, int y, int index) {
@@ -810,7 +812,7 @@ void DrawRSSI(int x, int y, int rssi) {
     If called with Y!_Max value of 500 and the data never goes above 500, then autoscale will retain a 0-500 Y scale, if on, the scale increases/decreases to match the data.
     auto_scale_margin, e.g. if set to 1000 then autoscale increments the scale by 1000 steps.
 */
-void DrawGraph(int x_pos, int y_pos, int gwidth, int gheight, float Y1Min, float Y1Max, String title, float DataArray[], int readings, boolean auto_scale, boolean barchart_mode) {
+void DrawGraph(int x_pos, int y_pos, int gwidth, int gheight, float Y1Min, float Y1Max, String title, float DataArray[], float DataArray2[], int readings, boolean auto_scale, boolean barchart_mode) {
 #define auto_scale_margin 0 // Sets the autoscale increment, so axis steps up in units of e.g. 3
 #define y_minor_axis 5      // 5 y-axis division markers
   float maxYscale = -10000;
@@ -828,26 +830,36 @@ void DrawGraph(int x_pos, int y_pos, int gwidth, int gheight, float Y1Min, float
     Y1Min = round(minYscale);
   }
   // Draw the graph
-  last_x = x_pos + 1;
-  last_y = y_pos + (Y1Max - constrain(DataArray[1], Y1Min, Y1Max)) / (Y1Max - Y1Min) * gheight;
   display.drawRect(x_pos, y_pos, gwidth + 3, gheight + 2, GxEPD_BLACK);
   u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312);
   drawString(x_pos + gwidth / 2, y_pos - 12, title, CENTER);
   u8g2Fonts.setFont(u8g2_font_helvB08_tf);
   // Draw the data
-  for (int gx = 1; gx < readings; gx++) {
-    x1 = last_x;
-    y1 = last_y;
-    x2 = x_pos + gx * gwidth / (readings - 1) - 1 ; // max_readings is the global variable that sets the maximum data that can be plotted
-    y2 = y_pos + (Y1Max - constrain(DataArray[gx], Y1Min, Y1Max)) / (Y1Max - Y1Min) * gheight + 1;
-    if (barchart_mode) {
-      display.fillRect(x2, y2, (gwidth / readings) - 1, y_pos + gheight - y2 + 1, GxEPD_BLACK);
-    } else {
-      display.drawLine(last_x, last_y, x2, y2, GxEPD_BLACK);
+  float *DataArrays[] = {
+    DataArray, DataArray2
+  };
+  for (int groups=0; groups < 2; groups++){
+    last_x = x_pos + 1;
+    last_y = y_pos + (Y1Max - constrain(DataArray[groups], Y1Min, Y1Max)) / (Y1Max - Y1Min) * gheight;
+
+    float *dt = DataArrays[groups];
+    if (dt == NULL) break;
+    uint16_t color = groups == 0 ? GxEPD_BLACK: GxEPD_RED;
+    for (int gx = 1; gx < readings; gx++) {
+      x1 = last_x;
+      y1 = last_y;
+      x2 = x_pos + gx * gwidth / (readings - 1) - 1 ; // max_readings is the global variable that sets the maximum data that can be plotted
+      y2 = y_pos + (Y1Max - constrain(dt[gx], Y1Min, Y1Max)) / (Y1Max - Y1Min) * gheight + 1;
+      if (barchart_mode) {
+        display.fillRect(x2, y2, (gwidth / readings) - 1, y_pos + gheight - y2 + 1, color);
+      } else {
+        display.drawLine(last_x, last_y, x2, y2, color);
+      }
+      last_x = x2;
+      last_y = y2;
     }
-    last_x = x2;
-    last_y = y2;
   }
+  
   //Draw the Y-axis scale
 #define number_of_dashes 15
   for (int spacing = 0; spacing <= y_minor_axis; spacing++) {
